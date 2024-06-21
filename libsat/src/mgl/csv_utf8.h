@@ -13,7 +13,7 @@
 namespace Sat {
 
 
-  typedef std::vector<short int> BigChars;
+  typedef std::vector<unsigned short int> BigChars;
 
   int filesize(std::istream& ifs);
 

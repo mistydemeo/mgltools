@@ -19,7 +19,7 @@ using namespace std;
 using namespace BlackT;
 using namespace Sat;
 
-typedef vector<short int> BigChars;
+typedef vector<unsigned short int> BigChars;
 
 // TODO: remove KANJI.FNT-related stuff.
 // we no longer use it and probably won't need it.
