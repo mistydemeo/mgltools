@@ -111,8 +111,7 @@ namespace Sat {
       }
       // UTF-8 star
       else if (chars[i] == 0x2606) {
-        // TODO: we're missing a font character for this! oops!
-        dst.push_back('?');
+        dst.push_back(0x86);
       }
       // UTF-8 music note
       else if (chars[i] == 0x266A) {
