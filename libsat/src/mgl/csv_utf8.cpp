@@ -101,9 +101,8 @@ namespace Sat {
         dst.push_back('.');
       }
       // UTF-8 reference mark
-      // This is roughly equivalent to an asterisk, so just use that.
       else if (chars[i] == 0x203B) {
-        dst.push_back('*');
+        dst.push_back(0x87);
       }
       // UTF-8 circle
       else if (chars[i] == 0x25CF) {
