@@ -21,10 +21,6 @@ using namespace Sat;
 
 typedef vector<unsigned short int> BigChars;
 
-// TODO: remove KANJI.FNT-related stuff.
-// we no longer use it and probably won't need it.
-// keeping it around just in case.
-
 // Offset at which to start placing data in KANJI.FNT
 const static int kanjiStartingPos = 0x4800;
 
@@ -209,7 +205,7 @@ std::string formatRawString(std::string input) {
 void updateChunk(BlackT::TArray<TByte>& rawChunkData,
                  vector<TransFileEntry>& transFileEntries,
                  int startIndex, int endIndex,
-                 TStream& kanjiBuffer) {
+                 TStream& kanjiBuffer, bool useKanji) {
   // do nothing if no strings
   if (transFileEntries.size() == 0) return;
   
@@ -300,8 +296,37 @@ void updateChunk(BlackT::TArray<TByte>& rawChunkData,
       // move to next position in dialogue chunk
       putpos += formattedString.size();
     }
+    // if we were asked to, insert into KANJI.FNT
+    else if (useKanji) {
+      cout << "Relocating to KANJI.FNT, " << hex << kanjiBuffer.tell()
+        << ": " << englishString << endl;
+      cout << dec;
+
+      if ((kanjiBuffer.tell() + formattedString.size()) > maxKanjidatSz) {
+        throw TGenericException(T_SRCANDLINE,
+                                "void updateChunk()",
+                                "Out of space in KANJI.FNT");
+      }
+
+      // The game converts the chunk-local offsets into physical addresses
+      // at runtime by adding the address to which the chunk is loaded
+      // (0x06010000) to the offset. We need to change the offset in such a
+      // way that when this conversion is performed, the resulting address
+      // will instead point to the string's new position in KANJI.FNT, which
+      // is loaded to 0x002F2000. Therefore:
+      long int target = (long)kanjiLoadAddr + (long)kanjiBuffer.tell();
+      target -= (long)sxxLoadAddr;
+      // add range of 32-bit int
+      target += (long)0x100000000;
+
+      // Write offset
+      ofs.seek(stringOffsetPos);
+      ofs.writeu32be(target);
+
+      // And then drop the new content in kanjiBuffer
+      kanjiBuffer.write(formattedString.c_str(), formattedString.size());
     // otherwise, put it in the append chunk
-    else {
+    } else {
 //      cout << "Relocating to append chunk, " << hex << appendOfs.tell()
 //        << ": " << englishString << endl;
 //      cout << dec;
@@ -355,6 +380,12 @@ int main(int argc, char* argv[]) {
   char* kanjidat = argv[3];
   char* kanjitxt = argv[4];
   char* outfile = argv[5];
+  bool relocate = false;
+  if (argc > 6) {
+    if (strncmp(argv[6], "--kanji", 8) == 0) {
+      relocate = true;
+    }
+  }
 
   ifstream ifs;
   
@@ -431,7 +462,7 @@ int main(int argc, char* argv[]) {
     
     updateChunk(fld.chunk(chunknum),
                 transEntries, startIndex, endIndex,
-                kanjiBuf);
+                kanjiBuf, relocate);
     
     // Prepare for next loop
     startIndex = endIndex;
