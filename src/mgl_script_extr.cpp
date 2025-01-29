@@ -59,7 +59,7 @@ CharacterExpression portraitMappings[] = {
   { "Kule", NULL },
   { "Rick", NULL },
   // 31
-  { "Shiela", NULL },
+  { "Sheila", NULL },
   { "D", NULL },
   { "Barua", NULL },
   { "Memphis", NULL },
