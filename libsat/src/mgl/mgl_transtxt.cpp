@@ -281,7 +281,8 @@ namespace Sat {
       // terminator: non-escaped comma or newline
       if (!escaping && ((next == ',') || (next == '\n'))) break;
       
-      if (smallconvert)  str += (next + smallConvertOffset);
+      // Punctuation below 0x2D not available in small font
+      if (smallconvert && next >= 0x2D)  str += (next + smallConvertOffset);
       else str += next;
     }
     
@@ -326,7 +327,7 @@ namespace Sat {
       
       char next = src[pos++];
       
-      if (smallconvert) dst += (next + smallConvertOffset);
+      if (smallconvert && next >= 0x2D) dst += (next + smallConvertOffset);
       else dst += next;
     }
   }
