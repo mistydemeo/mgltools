@@ -17,6 +17,7 @@ namespace Sat {
   // Offset that converts from regular to reduced-width ASCII font
   const int smallConvertOffset = 96;
 
+#if 0
   int fsize(std::istream& ifs) {
     int pos = ifs.tellg();
     ifs.seekg(0, std::ios_base::end);
@@ -24,6 +25,7 @@ namespace Sat {
     ifs.seekg(pos);
     return sz;
   }
+#endif
 
   std::string nextToken(std::istream& ifs) {
     string str;
