@@ -11,7 +11,6 @@ namespace Sat {
 
 
   int fsize(std::istream& ifs);
-
   std::string nextToken(std::istream& ifs);
   void escapeString(const std::string& src, std::string& dst);
   void escapeStringNew(const std::string& src, std::string& dst);

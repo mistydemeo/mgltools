@@ -1,7 +1,10 @@
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <string>
 #include <vector>
+#include <map>
+#include "nlohmann/json.hpp"
 #include "util/utf8.h"
 #include "mgl/csv_utf8.h"
 #include "mgl/mgl_cmpr.h"
@@ -18,11 +21,113 @@
 using namespace std;
 using namespace BlackT;
 using namespace Sat;
+using json = nlohmann::json;
+
+// huffman table: byte value -> bit string (msb first)
+static map<unsigned char, string> huffmanCodes;
+static bool huffmanEnabled = false;
+
+static void loadHuffmanTable(const char* path) {
+  ifstream f(path);
+  if (!f.good()) {
+    cerr << "Error: failed to open huffman table: " << path << endl;
+    exit(1);
+  }
+
+  json j = json::parse(f);
+  for (auto& [key, val] : j["codes"].items()) {
+    unsigned char byteVal = (unsigned char)atoi(key.c_str());
+    huffmanCodes[byteVal] = val.get<string>();
+  }
+
+  cout << "-> loaded huffman table, size " << huffmanCodes.size() << endl;
+  huffmanEnabled = true;
+}
+
+// uses bit-stuffing to avoid mid-string null
+static string huffmanEncode(const string& input) {
+  vector<int> bits;
+  for (size_t i = 0; i < input.size(); i++) {
+    unsigned char ch = (unsigned char)input[i];
+    if (ch == 0) break;
+    
+    auto it = huffmanCodes.find(ch);
+    if (it == huffmanCodes.end()) {
+      // symbol has no encoding -- use escaped literal
+      auto esc = huffmanCodes.find(0x7F);
+      if (esc == huffmanCodes.end()) {
+        cerr << "Error: no Huffman code for byte " << (int)ch << " and no escape code (0x7F)" << endl;
+        exit(1);
+      }
+      const string& escCode = esc->second;
+      
+      // esc encoding
+      for (size_t j = 0; j < escCode.size(); j++)
+        bits.push_back(escCode[j] - '0');
+        
+      // literal
+      for (int b = 7; b >= 0; b--)
+        bits.push_back((ch >> b) & 1);
+    } else {
+      const string& code = it->second;
+      for (size_t j = 0; j < code.size(); j++) {
+        bits.push_back(code[j] - '0');
+      }
+    }
+  }
+
+  // pack bits into bytes.
+  // if a byte starts with 7x 0s, then stuff with a '1' at
+  // the end of the byte to avoid mid-string null
+  string out;
+  unsigned char byteAcc = 0;
+  int bitCount = 0;
+
+  for (size_t i = 0; i < bits.size(); i++) {
+    byteAcc = (byteAcc << 1) | bits[i];
+    bitCount++;
+
+    // stuff
+    if (bitCount == 7) {
+      if (byteAcc == 0) {
+        out += (char)0x01;
+        byteAcc = 0;
+        bitCount = 0;
+        continue;
+      }
+    }
+
+    if (bitCount == 8) {
+      out += (char)byteAcc;
+      byteAcc = 0;
+      bitCount = 0;
+    }
+  }
+
+  // flush remainder
+  if (bitCount > 0) {
+    if (bitCount <= 7 && byteAcc == 0) {
+      // stuff
+      out += (char)0x01;
+    } else {
+      // non-stuff
+      byteAcc <<= (8 - bitCount);
+      if (byteAcc == 0x00)
+        out += (char)0x01;
+      else
+        out += (char)byteAcc;
+    }
+  }
+
+  // null terminator (is this needed in std::string?)
+  out += (char)0;
+  return out;
+}
 
 typedef vector<unsigned short int> BigChars;
 
 // Offset at which to start placing data in KANJI.FNT
-const static int kanjiStartingPos = 0x4800;
+const static int kanjiStartingPos = 0x6000;
 
 // Load address of KANJI.FNT
 const static unsigned int kanjiLoadAddr = 0x002f2000;
@@ -274,7 +379,11 @@ void updateChunk(BlackT::TArray<TByte>& rawChunkData,
     
     // reformat english string for display
     string formattedString = formatRawString(englishString);
-    
+
+    if (huffmanEnabled) {
+      formattedString = huffmanEncode(formattedString);
+    }
+
     //============================================
     // find a place to put the new string
     //============================================
@@ -381,9 +490,12 @@ int main(int argc, char* argv[]) {
   char* kanjitxt = argv[4];
   char* outfile = argv[5];
   bool relocate = false;
-  if (argc > 6) {
-    if (strncmp(argv[6], "--kanji", 8) == 0) {
+  // parse optional flags
+  for (int i = 6; i < argc; i++) {
+    if (strncmp(argv[i], "--kanji", 8) == 0) {
       relocate = true;
+    } else if (strncmp(argv[i], "--huffman", 10) == 0 && i + 1 < argc) {
+      loadHuffmanTable(argv[++i]);
     }
   }
 
